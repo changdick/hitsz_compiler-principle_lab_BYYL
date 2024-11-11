@@ -1,6 +1,5 @@
 package cn.edu.hitsz.compiler.parser;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.lexer.Token;
 import cn.edu.hitsz.compiler.parser.table.Action;
 import cn.edu.hitsz.compiler.parser.table.LRTable;
@@ -31,7 +30,7 @@ public class SyntaxAnalyzer {
 //   分析的时候用的是符号栈，既有非终结符也有终结符，入符号栈还要做一个转换
     private final Deque<Token> tokenQueue = new ArrayDeque<>();
     private final Deque<Status> statusStack = new ArrayDeque<>(); // 状态栈 ， 初始化的时候要补一个初始状态
-    private final Deque<SymbolEntry> symbolEntryStack = new ArrayDeque<>();   // 符号栈（语法分析只用到token部分）
+    private final Deque<VTSymbol> SymbolStack = new ArrayDeque<>();   // 符号栈
     private LRTable lrTable;
     public SyntaxAnalyzer(SymbolTable symbolTable) {
         this.symbolTable = symbolTable;
@@ -148,7 +147,7 @@ public class SyntaxAnalyzer {
 
         Status nextState = action.getStatus(); // action.getStatus只有当action是shift类型才能调用，action已经存储好了要移去的状态，调用即可获得
         statusStack.push(nextState);   // 将新状态压入状态栈
-        symbolEntryStack.push(new SymbolEntry(tokenQueue.poll()));   // 读入的是token，因为语法分析只需要token，但是构建符号放符号栈还可以同时做语义分析
+        SymbolStack.push(new VTSymbol(tokenQueue.poll()));   // 读入的是token，因为语法分析只需要token，但是构建符号放符号栈还可以同时做语义分析
         // 调用poll方法出队，在返回的同时，将token出队
 
 
@@ -165,10 +164,10 @@ public class SyntaxAnalyzer {
        这是因为记录类型会自动生成访问器方法（getter），用于访问记录中的各个字段。当你使用recordObject.fieldName()的形式时，实际上是在调用自动生成的访问器方法来获取该字段的值。8*/
         for (int i = 0; i < production.body().size(); i++) {
             statusStack.pop();  // 弹出与产生式右部相应数量的状态
-            symbolEntryStack.pop();  // 弹出符号
+            SymbolStack.pop();  // 弹出符号
         }
         // 将产生式左部符号入栈
-        symbolEntryStack.push(new SymbolEntry(production.head()));
+        SymbolStack.push(new VTSymbol(production.head()));
         // 根据此时的两个栈顶查goto表，获得新状态入栈
         statusStack.push(lrTable.getGoto(statusStack.peek(), production.head()));
     }

@@ -1,9 +1,13 @@
 package cn.edu.hitsz.compiler.asm;
 
 import cn.edu.hitsz.compiler.NotImplementedException;
+import cn.edu.hitsz.compiler.ir.IRValue;
 import cn.edu.hitsz.compiler.ir.Instruction;
+import cn.edu.hitsz.compiler.ir.InstructionKind;
 
-import java.util.List;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 
 
 /**
@@ -21,6 +25,22 @@ import java.util.List;
  * @see AssemblyGenerator#run() 代码生成与寄存器分配
  */
 public class AssemblyGenerator {
+    private List<String> usedRegisters = new ArrayList<>();  // 用于追踪已经使用的寄存器
+    private List<String> freeRegisters = new ArrayList<>();  // 用于追踪空闲寄存器
+    private List<String> assemblyInstructions = new ArrayList<>();
+
+    private Map<String, String> registerMap = new HashMap<>();
+    private List<Instruction> instructions;
+
+
+    private static final String[] REGISTER_POOL = {
+            "t0", "t1", "t2", "t3", "t4", "t5", "t6", "s0", "s1", "s2", "s3"
+    };
+
+    public AssemblyGenerator() {
+        // 初始化空闲寄存器池
+        freeRegisters.addAll(Arrays.asList(REGISTER_POOL));
+    }
 
     /**
      * 加载前端提供的中间代码
@@ -32,7 +52,8 @@ public class AssemblyGenerator {
      */
     public void loadIR(List<Instruction> originInstructions) {
         // TODO: 读入前端提供的中间代码并生成所需要的信息
-        throw new NotImplementedException();
+//        throw new NotImplementedException();
+        instructions = originInstructions;
     }
 
 
@@ -47,10 +68,103 @@ public class AssemblyGenerator {
      */
     public void run() {
         // TODO: 执行寄存器分配与代码生成
-        throw new NotImplementedException();
+//        throw new NotImplementedException();
+        // 依次处理每一条指令
+        for (Instruction instruction : instructions) {
+            generateAssembly(instruction);
+        }
     }
 
+    /**
+     * 生成汇编代码
+     */
+    public void generateAssembly(Instruction instruction) {
+        InstructionKind kind = instruction.getKind();
+        String target = null;
+        String src1 = null;
+        String src2 = null;
+        boolean lhsImmediate = false;
+        boolean rhsImmediate = false;
 
+        // 根据指令的种类来决定如何获取操作数, 取数的get跟指令的种类有关， InstructionKind有提供方法判断操作数是几个。
+        if (kind.isBinary()) {
+            // 对于二元操作，获取 LHS 和 RHS
+            src1 = getOperand(instruction.getLHS());
+            src2 = getOperand(instruction.getRHS());
+            target = getOperand(instruction.getResult());
+            lhsImmediate = instruction.getLHS().isImmediate();
+            rhsImmediate = instruction.getRHS().isImmediate();
+        } else if (kind.isUnary()) {
+            // 对于 MOV 指令，只获取从操作数
+            src2 = getOperand(instruction.getFrom());
+            target = getOperand(instruction.getResult());
+            rhsImmediate = instruction.getFrom().isImmediate();
+        } else if (kind.isReturn()) {
+            // 对于 RET 指令，直接获取返回值
+            src1 = getOperand(instruction.getReturnValue());
+        }
+
+        // 如果是 ADD 指令且 lhs 是立即数，交换 src1 和 src2
+        if (kind == InstructionKind.ADD && lhsImmediate) {
+            String tempSrc = src1;
+            src1 = src2;
+            src2 = tempSrc;
+
+            boolean tempImmediate = lhsImmediate;
+            lhsImmediate = rhsImmediate;
+            rhsImmediate = tempImmediate;
+        }
+
+        switch (kind) {
+            case ADD:
+                if (rhsImmediate) {
+                    assemblyInstructions.add("addi " + target + ", " + src1 + ", " + src2);
+                } else {
+                    assemblyInstructions.add("add " + target + ", " + src1 + ", " + src2);
+                }
+                break;
+
+            case SUB:
+                if (rhsImmediate) {
+                    // 使用 addi 指令，并将立即数取负
+                    assemblyInstructions.add("addi " + target + ", " + src1 + ", -" + src2);
+                } else if (lhsImmediate) {
+                    // 如果 src1 是立即数，用 li 加载立即数到寄存器，再用 sub
+                    String tempReg = allocateRegister();
+                    assemblyInstructions.add("li " + tempReg + ", " + src1);
+                    assemblyInstructions.add("sub " + target + ", " + tempReg + ", " + src2);
+                    freeRegister(tempReg);  // 释放临时寄存器
+                } else {
+                    assemblyInstructions.add("sub " + target + ", " + src1 + ", " + src2);
+                }
+                break;
+
+            case MUL:
+                if (rhsImmediate) {
+                    String tempReg = allocateRegister();
+                    assemblyInstructions.add("li " + tempReg + ", " + src2);
+                    assemblyInstructions.add("mul " + target + ", " + src1 + ", " + tempReg);
+                    freeRegister(tempReg);  // 释放临时寄存器
+                } else {
+                    assemblyInstructions.add("mul " + target + ", " + src1 + ", " + src2);
+                }
+                break;
+
+            case MOV:
+                if (rhsImmediate) {
+                    // 如果是立即数，则使用 li 指令
+                    assemblyInstructions.add("li " + target + ", " + src2);
+                } else {
+                    assemblyInstructions.add("mv " + target + ", " + src2);
+                }
+                break;
+
+            case RET:
+
+                assemblyInstructions.add("mv a0, " + src1);
+                break;
+        }
+    }
     /**
      * 输出汇编代码到文件
      *
@@ -58,7 +172,56 @@ public class AssemblyGenerator {
      */
     public void dump(String path) {
         // TODO: 输出汇编代码到文件
-        throw new NotImplementedException();
+//        throw new NotImplementedException();
+        try (FileWriter writer = new FileWriter(path)) {
+            for (String line : assemblyInstructions) {
+                writer.write(line + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void freeRegister(String reg) {
+        usedRegisters.remove(reg);
+        freeRegisters.add(reg);
+    }
+
+
+    private String allocateRegister() {
+        if (freeRegisters.isEmpty()) {
+            throw new RuntimeException("No available registers");
+        }
+        // 从空闲寄存器池中取出一个寄存器
+        String reg = freeRegisters.removeLast(); // 从列表末尾取出
+        usedRegisters.add(reg);
+        return reg;
+    }
+
+    private String getRegister(String variable) {
+        if (registerMap.containsKey(variable)) {
+            return registerMap.get(variable);
+        } else {
+            String reg = allocateRegister();
+            registerMap.put(variable, reg);
+            return reg;
+        }
+
+    }
+
+    private String getOperand(IRValue value) {
+        // 返回操作数的字符串表示
+        // 假设有方法返回 IRValue 的字符串表示
+        // 如果操作数是立即数，直接返回其值
+        if (value.isImmediate()) {
+            return value.toString();  // 假设 toString 返回的是立即数的值
+        }
+        // 有可能是存在寄存器里的，其他情况直接返回存它的寄存器。存它的寄存器可能是
+
+        // 如果是其他类型的操作数，我们分配一个新的寄存器
+        return getRegister(value.toString());  // 为该操作数分配一个新的寄存器
+
     }
 }
+
 

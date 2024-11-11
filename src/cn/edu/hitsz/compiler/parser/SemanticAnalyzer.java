@@ -1,6 +1,5 @@
 package cn.edu.hitsz.compiler.parser;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.lexer.Token;
 import cn.edu.hitsz.compiler.parser.table.Production;
 import cn.edu.hitsz.compiler.parser.table.Status;
@@ -16,7 +15,7 @@ import java.util.Deque;
 public class SemanticAnalyzer implements ActionObserver {
     private SymbolTable symbolTable;
 
-    private final Deque<SymbolEntry> symbolStack = new ArrayDeque<>();   // 符号栈,还是用symbolEntry，其实根本用不到符号，只用得到类型
+    private final Deque<VTSymbol> symbolStack = new ArrayDeque<>();   // 符号栈,还是用symbolEntry，其实根本用不到符号，只用得到类型
     @Override
     public void whenAccept(Status currentStatus) {
         // TODO: 该过程在遇到 Accept 时要采取的代码动作
@@ -34,13 +33,13 @@ public class SemanticAnalyzer implements ActionObserver {
         if (productionIndex == 5) {
             // D -> int;
             symbolStack.pop();   // 弹出 int这个token
-            symbolStack.push(new SymbolEntry(production.head(), SourceCodeType.Int));
+            symbolStack.push(new VTSymbol(production.head(), SourceCodeType.Int));
         } else if (productionIndex == 4) {
             //S -> D id; 要更新符号表
-            SymbolEntry id = symbolStack.pop(); // 弹出栈顶的符号id
-            SymbolEntry D  = symbolStack.pop(); // 弹出栈顶的D
+            VTSymbol id = symbolStack.pop(); // 弹出栈顶的符号id
+            VTSymbol D  = symbolStack.pop(); // 弹出栈顶的D
             symbolTable.get(id.getToken().getText()).setType(D.type);   //  从符号表里获取id，设置id的type为D的type
-            symbolStack.push(new SymbolEntry(production.head()));
+            symbolStack.push(new VTSymbol(production.head()));
 
 
         } else {
@@ -49,7 +48,7 @@ public class SemanticAnalyzer implements ActionObserver {
                 symbolStack.pop();  // 弹出符号
 
             }
-            symbolStack.push(new SymbolEntry(production.head()));
+            symbolStack.push(new VTSymbol(production.head()));
         }
 
 
@@ -64,7 +63,7 @@ public class SemanticAnalyzer implements ActionObserver {
     public void whenShift(Status currentStatus, Token currentToken) {
         // TODO: 该过程在遇到 shift 时要采取的代码动作
 //        throw new NotImplementedException();
-        symbolStack.push(new SymbolEntry(currentToken));  // 把移进的终结符压入符号栈
+        symbolStack.push(new VTSymbol(currentToken));  // 把移进的终结符压入符号栈
 
     }
 

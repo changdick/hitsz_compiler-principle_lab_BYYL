@@ -1,6 +1,5 @@
 package cn.edu.hitsz.compiler.parser;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.ir.IRImmediate;
 import cn.edu.hitsz.compiler.ir.IRValue;
 import cn.edu.hitsz.compiler.ir.IRVariable;
@@ -20,7 +19,7 @@ import java.util.*;
  */
 public class IRGenerator implements ActionObserver {
 
-    private final Deque<SymbolEntry> symbolStack = new ArrayDeque<>();   // 符号栈,和语义分析一样
+    private final Deque<VTSymbol> symbolStack = new ArrayDeque<>();   // 符号栈,和语义分析一样
 
     private final Stack<IRValue> irStack = new Stack<>();  // IR生成过程中用的栈 这个值本来可以作为一个字段放到SymbolEntry，但是又会导致前面用到SymbolEntry的太冗余
 
@@ -30,7 +29,7 @@ public class IRGenerator implements ActionObserver {
         // TODO
 //        throw new NotImplementedException();
         // 移位时，ir生成只需要把token存进来就行
-        symbolStack.push(new SymbolEntry(currentToken));
+        symbolStack.push(new VTSymbol(currentToken));
         irStack.push(null);                       // ir占位 ， 只有规约的时候才会知道ir应该是什么
 
     }
@@ -48,7 +47,7 @@ public class IRGenerator implements ActionObserver {
                 irStack.pop();
                 irStack.push(immediate);  // 把栈顶占位的弹了，压回ir数字
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
 
             }
             case 14 -> {
@@ -58,7 +57,7 @@ public class IRGenerator implements ActionObserver {
                 irStack.pop();
                 irStack.push(variable);  // 结构和产生式15基本一样
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
             }
             case 13 -> {
 //                B -> ( E );  和14、15基本一样，但是E 不一定是IRImmediate或者IRVariable，就用IRValue,弹栈要弹出3个
@@ -68,7 +67,7 @@ public class IRGenerator implements ActionObserver {
                 irStack.pop();
                 irStack.push(value);
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
 
             }
             case 10, 12 -> {
@@ -77,7 +76,7 @@ public class IRGenerator implements ActionObserver {
                 IRValue value = irStack.pop();
                 irStack.push(value);            //弹出一个右部值，压回去作为左部值
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
             }
             case 11 -> {
 //                A -> A * B;
@@ -90,7 +89,7 @@ public class IRGenerator implements ActionObserver {
 
                 instructions.add(Instruction.createMul(newValue, aValue, bValue));  // 创建指令，并加入指令表
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
             }
             case 9 -> {
                 // 算术运算都跟11 类似   E -> E - A;
@@ -103,7 +102,7 @@ public class IRGenerator implements ActionObserver {
 
                 instructions.add(Instruction.createSub(newValue, eValue, aValue));
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
 
             }
             case 8 -> {
@@ -117,7 +116,7 @@ public class IRGenerator implements ActionObserver {
 
                 instructions.add(Instruction.createAdd(newValue, eValue, aValue));
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
             }
 
             case 6 -> {
@@ -134,7 +133,7 @@ public class IRGenerator implements ActionObserver {
 
                 irStack.push(null);  // S只需要占位置
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
             }
             case 7 -> {
 //                S -> return E;
@@ -146,7 +145,7 @@ public class IRGenerator implements ActionObserver {
 
                 instructions.add(Instruction.createRet(value));
 
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
 
             }
             default -> {
@@ -156,7 +155,7 @@ public class IRGenerator implements ActionObserver {
                     irStack.pop();
                 }
                 irStack.push(null);
-                symbolStack.push(new SymbolEntry(production.head()));
+                symbolStack.push(new VTSymbol(production.head()));
 
             }
 
