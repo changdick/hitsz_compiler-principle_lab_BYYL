@@ -1,6 +1,6 @@
 package cn.edu.hitsz.compiler.asm;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
+
 import cn.edu.hitsz.compiler.ir.IRValue;
 import cn.edu.hitsz.compiler.ir.Instruction;
 import cn.edu.hitsz.compiler.ir.InstructionKind;
@@ -25,11 +25,11 @@ import java.util.*;
  * @see AssemblyGenerator#run() 代码生成与寄存器分配
  */
 public class AssemblyGenerator {
-    private List<String> usedRegisters = new ArrayList<>();  // 用于追踪已经使用的寄存器
-    private List<String> freeRegisters = new ArrayList<>();  // 用于追踪空闲寄存器
-    private List<String> assemblyInstructions = new ArrayList<>();
+    private final List<String> usedRegisters = new ArrayList<>();  // 用于追踪已经使用的寄存器？ 我们需要这个吗
+    private final List<String> freeRegisters = new ArrayList<>();  // 用于追踪空闲寄存器
+    private final List<String> assemblyInstructions = new ArrayList<>();
 
-    private Map<String, String> registerMap = new HashMap<>();
+    private final Map<String, String> registerMap = new HashMap<>();
     private List<Instruction> instructions;
 
 
