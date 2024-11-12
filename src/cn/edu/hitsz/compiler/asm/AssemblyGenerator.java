@@ -34,7 +34,7 @@ public class AssemblyGenerator {
 
 
     private static final String[] REGISTER_POOL = {
-            "t0", "t1", "t2", "t3", "t4", "t5", "t6", "s0", "s1", "s2", "s3"
+            "t0", "t1", "t2", "t3", "t4", "t5", "t6"
     };
 
     public AssemblyGenerator() {
@@ -72,6 +72,7 @@ public class AssemblyGenerator {
         // 依次处理每一条指令
         for (Instruction instruction : instructions) {
             generateAssembly(instruction);
+            releaseUnusedRegisters(instruction);
         }
     }
 
@@ -130,10 +131,12 @@ public class AssemblyGenerator {
                     assemblyInstructions.add("addi " + target + ", " + src1 + ", -" + src2);
                 } else if (lhsImmediate) {
                     // 如果 src1 是立即数，用 li 加载立即数到寄存器，再用 sub
-                    String tempReg = allocateRegister();
-                    assemblyInstructions.add("li " + tempReg + ", " + src1);
-                    assemblyInstructions.add("sub " + target + ", " + tempReg + ", " + src2);
-                    freeRegister(tempReg);  // 释放临时寄存器
+                    // 此时，target已经取了寄存器，其实不必申请临时寄存器，而是直接把立即数加载到target中，
+                    // 然后用target减去减数，存target，一样完成减法，不需要临时寄存器。
+//                    String tempReg = allocateRegister();
+                    assemblyInstructions.add("li " + target + ", " + src1);
+                    assemblyInstructions.add("sub " + target + ", " + target + ", " + src2);
+//                    freeRegister(tempReg);  // 释放临时寄存器
                 } else {
                     assemblyInstructions.add("sub " + target + ", " + src1 + ", " + src2);
                 }
@@ -141,10 +144,10 @@ public class AssemblyGenerator {
 
             case MUL:
                 if (rhsImmediate) {
-                    String tempReg = allocateRegister();
-                    assemblyInstructions.add("li " + tempReg + ", " + src2);
-                    assemblyInstructions.add("mul " + target + ", " + src1 + ", " + tempReg);
-                    freeRegister(tempReg);  // 释放临时寄存器
+//                    String tempReg = allocateRegister();
+                    assemblyInstructions.add("li " + target + ", " + src2);
+                    assemblyInstructions.add("mul " + target + ", " + src1 + ", " + target);
+//                    freeRegister(tempReg);  // 释放临时寄存器
                 } else {
                     assemblyInstructions.add("mul " + target + ", " + src1 + ", " + src2);
                 }
@@ -221,6 +224,44 @@ public class AssemblyGenerator {
         // 如果是其他类型的操作数，我们分配一个新的寄存器
         return getRegister(value.toString());  // 为该操作数分配一个新的寄存器
 
+    }
+
+
+    private void releaseUnusedRegisters(Instruction currentInstruction) {
+        Set<String> usedInFuture = new HashSet<>();
+
+        // 遍历当前指令之后的每条指令，检查变量的使用情况
+        for (int i = instructions.indexOf(currentInstruction) + 1; i < instructions.size(); i++) {
+            Instruction instruction = instructions.get(i);
+            InstructionKind kind = instruction.getKind();
+
+            // 根据指令种类获取使用的变量
+            if (kind.isBinary()) {
+                usedInFuture.add(instruction.getLHS().toString());
+                usedInFuture.add(instruction.getRHS().toString());
+                usedInFuture.add(instruction.getResult().toString());
+            } else if (kind.isUnary()) {
+                usedInFuture.add(instruction.getFrom().toString());
+                usedInFuture.add(instruction.getResult().toString());
+            } else if (kind.isReturn()) {
+                if (instruction.getReturnValue() != null) {
+                    usedInFuture.add(instruction.getReturnValue().toString());
+                }
+            }
+        }
+        // 遍历 registerMap 中的变量，检查是否仍在使用
+        Iterator<Map.Entry<String, String>> iterator = registerMap.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, String> entry = iterator.next();
+            String variable = entry.getKey();
+            String register = entry.getValue();
+
+            if (!usedInFuture.contains(variable)) {
+                // 如果变量不再使用，释放寄存器
+                iterator.remove(); // 从 registerMap 中移除该变量
+                freeRegister(register); // 释放寄存器
+            }
+        }
     }
 }
 
